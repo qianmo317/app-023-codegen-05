@@ -115,11 +115,80 @@ h2 { font-size: 16px; margin: 18px 0 6px; border-left: 3px solid var(--red); pad
 .print-foot { margin-top: 18px; }
 
 @media print {
+  /* 出谱打印页（Print.tsx）沿用 A4 横向 10mm；分页预演页（Preview.tsx）挂载时会
+     注入同选择器、同 @media 的后定义规则覆盖 size 方向并把 margin 置 0（页面自带页边）。 */
   @page { size: A4 landscape; margin: 10mm; }
   .no-print { display: none !important; }
   body { background: #fff; }
   .print-page { padding: 0; }
   .score-svg { page-break-inside: avoid; }
+}
+
+/* ---- 分页预演 ---- */
+.preview-root { background: #ecebe6; min-height: 100vh; padding: 14px 18px 40px; }
+.preview-toolbar {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  background: #fff; border: 1px solid var(--border); border-radius: 6px; padding: 10px 14px;
+}
+.preview-toolbar label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.preview-toolbar input[type='number'], .preview-toolbar select { width: auto; }
+.pv-zoom { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; color: var(--dim); }
+.pv-summary {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 6px;
+  font-size: 14px;
+}
+.pv-dist-chip {
+  display: inline-block; background: #fff; border: 1px solid var(--border); border-radius: 3px;
+  padding: 1px 8px; margin-right: 6px; font-size: 12px;
+}
+.pv-warn {
+  background: #fff6ec; border: 1px solid #e0b083; border-left: 4px solid #c06a00;
+  border-radius: 4px; padding: 8px 12px; margin: 8px 0; font-size: 13px; line-height: 1.9;
+}
+.pv-warn .pv-advice { border-top: 1px dashed #e0b083; margin-top: 4px; padding-top: 4px; }
+.pv-long-tag {
+  display: inline-block; background: #fde2cf; color: #a04a00; border-radius: 3px;
+  padding: 0 7px; margin-left: 6px; font-weight: 600;
+}
+.pv-fatal { color: var(--red); font-weight: 600; margin-left: 8px; }
+.pv-ok { background: #eef8ef; border: 1px solid #9cc8a4; border-radius: 4px; padding: 7px 12px; margin: 8px 0; color: #2f6f3f; font-size: 13px; }
+
+.pv-pages { display: flex; flex-direction: column; gap: 18px; align-items: flex-start; }
+.pv-page-wrap { height: 0; position: relative; }
+.pv-page-caption { font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+.pv-page {
+  position: relative; background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+  transform-origin: top left; flex-shrink: 0; overflow: hidden;
+}
+.pv-margin { position: absolute; border: 1px dashed #c9c4b6; pointer-events: none; }
+.pv-header { position: absolute; }
+.pv-title { text-align: center; font-size: 24px; letter-spacing: 5px; margin: 0; }
+.pv-sub { text-align: center; color: var(--dim); font-size: 13px; margin-top: 2px; }
+.pv-body { position: absolute; overflow: hidden; }
+.pv-row { position: relative; }
+.pv-row .score-svg { max-width: none; }
+.pv-right-edge {
+  position: absolute; top: 0; bottom: 0; width: 0; border-left: 1px dashed #cfc9bb;
+  pointer-events: none;
+}
+.pv-row.overflow .pv-right-edge { border-left: 2px solid var(--red); }
+.pv-overflow-badge {
+  position: absolute; top: 16px; left: 100%; margin-left: 8px; white-space: nowrap;
+  background: var(--red); color: #fff; font-size: 11px; border-radius: 3px; padding: 1px 6px;
+}
+.pv-pageno {
+  position: absolute; bottom: 6px; text-align: center; font-size: 11px; color: #888;
+}
+
+/* 打印输出区：屏幕隐藏，打印时按物理像素 1:1 逐页输出 */
+.pv-print-area { display: none; }
+@media print {
+  .preview-root { background: #fff; padding: 0; min-height: 0; }
+  .pv-print-area { display: block; }
+  .pv-page.print {
+    box-shadow: none; page-break-after: always; break-after: page; overflow: hidden;
+  }
+  .pv-page.print:last-child { page-break-after: auto; break-after: auto; }
 }
 
 /* ---- 曲牌库 ---- */

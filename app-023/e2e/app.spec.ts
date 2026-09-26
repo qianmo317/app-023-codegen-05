@@ -193,6 +193,112 @@ test.describe('打印', () => {
   });
 });
 
+test.describe('分页预演', () => {
+  test('入口、页数汇总、页边页码、标题只在第一页', async ({ page }) => {
+    await page.goto('#/library');
+    await page.getByTestId('load-jijifeng').click();
+    await expect(page.getByTestId('editor-page')).toBeVisible();
+    await page.getByTestId('btn-preview').click();
+    await expect(page.getByTestId('preview-page')).toBeVisible();
+    // 急急风 4 个 2/4 小节：横向每行 16 → 1 行（系统较高但首屏可容纳）
+    await expect(page.getByTestId('pv-page-count')).toContainText('1');
+    // 页边与页码
+    await expect(page.locator('.pv-margin')).toHaveCount(1);
+    await expect(page.locator('.pv-pages .pv-pageno')).toContainText('1');
+    // 标题与速度说明只出现在第一页
+    await expect(page.getByTestId('pv-header')).toContainText('急急风');
+    await expect(page.locator('.pv-header .pv-sub')).toContainText('152');
+  });
+
+  test('改任一条件立即重算：每行 2 小节 → 8 行 → 4 页，标题只在第 1 页', async ({ page }) => {
+    await createEmptyScore(page, 'E2E 预演重算');
+    for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '+4 小节' }).click(); // 16 小节
+    await page.waitForTimeout(500); // 等自动保存
+    await page.getByTestId('btn-preview').click();
+    await expect(page.getByTestId('preview-page')).toBeVisible();
+    await expect(page.getByTestId('pv-page-count')).toContainText('1');
+    // 每行改为 2 小节 → 8 行；7 乐器行时横向每页 2 行 → 4 页
+    await page.getByTestId('pv-maxbars').fill('2');
+    await expect(page.getByTestId('pv-page-count')).toContainText('4');
+    await expect(page.locator('[data-testid^="pv-page-"]')).toHaveCount(4);
+    // 每页放哪几个小节（每行 2、每页 2 行 = 每页 4 小节）
+    await expect(page.getByTestId('pv-dist-page-1')).toContainText('1–4');
+    await expect(page.getByTestId('pv-dist-page-4')).toContainText('13–16');
+    // 标题区只在第一页
+    await expect(page.getByTestId('pv-header')).toHaveCount(1);
+    await expect(page.getByTestId('pv-page-2')).not.toContainText('E2E 预演重算');
+  });
+
+  test('切纵向：页数重算、可用宽输入生效', async ({ page }) => {
+    await createEmptyScore(page, 'E2E 预演纵向');
+    for (let i = 0; i < 5; i++) await page.getByRole('button', { name: '+4 小节' }).click(); // 24 小节
+    await page.waitForTimeout(500);
+    await page.getByTestId('btn-preview').click();
+    const widthBefore = await page.getByTestId('pv-width').inputValue();
+    await page.getByTestId('pv-orientation').selectOption('portrait');
+    await expect(page.getByTestId('preview-page')).toHaveAttribute('data-orientation', 'portrait');
+    // 纵向默认可用宽（190mm）与横向（277mm）不同，输入框随之切换
+    await expect(page.getByTestId('pv-width')).not.toHaveValue(widthBefore);
+  });
+
+  test('窄可用宽 → 超界告警 → 加宽解除，并给出调整后页数', async ({ page }) => {
+    await createEmptyScore(page, 'E2E 超界');
+    await page.waitForTimeout(500);
+    await page.getByTestId('btn-preview').click();
+    await expect(page.getByTestId('pv-ok')).toBeVisible();
+    // 把可用宽压到最小 120mm → 行溢出
+    await page.getByTestId('pv-width').fill('120');
+    await expect(page.getByTestId('pv-warn-panel')).toBeVisible({ timeout: 3000 });
+    expect(await page.locator('[data-overflow="true"]').count()).toBeGreaterThan(0);
+    // 一键加宽
+    await page.getByTestId('pv-widen-all').click();
+    await expect(page.getByTestId('pv-ok')).toBeVisible({ timeout: 3000 });
+  });
+
+  test('偏长小节：给出「单独占一行」按钮及调整后页数，点击后该小节独占一行', async ({ page }) => {
+    // 预览基准拍数调到 1（名义槽变窄），4 拍小节即偏长；每行 8 个 → 溢出
+    await createEmptyScore(page, 'E2E 偏长');
+    await page.waitForTimeout(500);
+    await page.getByTestId('btn-preview').click();
+    await expect(page.getByTestId('pv-ok')).toBeVisible();
+    await page.getByTestId('pv-bpb').fill('1');
+    await page.getByTestId('pv-maxbars').fill('8');
+    await expect(page.getByTestId('pv-warn-panel')).toBeVisible({ timeout: 3000 });
+    // 第 1 小节有建议与两种调整方案按钮
+    await expect(page.getByTestId('pv-advice-0')).toBeVisible();
+    const soloPages = Number(await page.getByTestId('pv-solo-pages-0').textContent());
+    expect(soloPages).toBeGreaterThanOrEqual(1);
+    // 点击「让它单独占一行」→ 第 0 小节独占第一行
+    await page.getByTestId('pv-solo-0').click();
+    const barGroups = await page.evaluate(() => {
+      const g = document.querySelector('[data-testid="pv-1-0"]');
+      return g ? Array.from(g.querySelectorAll<SVGGElement>('[data-bar-index]')).map((x) => x.dataset.barIndex) : [];
+    });
+    expect(barGroups).toEqual(['0']);
+    // 告警条标在偏长小节上
+    await expect(page.locator('[data-testid^="pv-1-0-warn-"]').first()).toBeAttached();
+  });
+
+  test('打印预演结果：调用 window.print()，打印页含全部页码', async ({ page }) => {
+    await createEmptyScore(page, 'E2E 预演打印');
+    for (let i = 0; i < 3; i++) await page.getByRole('button', { name: '+4 小节' }).click(); // 16
+    await page.waitForTimeout(500);
+    await page.getByTestId('btn-preview').click();
+    await page.getByTestId('pv-maxbars').fill('2'); // 4 页
+    await expect(page.getByTestId('pv-page-count')).toContainText('4');
+    await page.evaluate(() => {
+      (window as unknown as { print: () => void }).print = () => {
+        (window as unknown as { __printed?: boolean }).__printed = true;
+      };
+    });
+    await page.getByTestId('pv-do-print').click();
+    expect(await page.evaluate(() => (window as unknown as { __printed?: boolean }).__printed)).toBe(true);
+    // 打印区四页都在（屏幕隐藏但在 DOM 中）
+    await expect(page.getByTestId('pv-print-page-1')).toBeAttached();
+    await expect(page.getByTestId('pv-print-page-4')).toBeAttached();
+  });
+});
+
 test.describe('设置', () => {
   test('改键位并持久化', async ({ page }) => {
     await page.goto('#/settings');

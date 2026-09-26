@@ -26,7 +26,7 @@
 |----|------|------|
 | 框架 | React 18 + TypeScript 5（strict） | 函数组件 + hooks |
 | 构建 | Vite 5 | `base: './'`，相对路径部署 |
-| 路由 | 自研 hash 路由（[App.tsx](src/App.tsx)） | `#/` 前缀，约 30 行解析，无 react-router |
+| 路由 | 自研 hash 路由（[App.tsx](src/App.tsx)） | `#/` 前缀，约 40 行解析，无 react-router |
 | 状态 | 局部 useState + [settingsContext](src/settingsContext.tsx) | 播放状态集中 [useAudio](src/hooks/useAudio.ts) |
 | 存储 | IndexedDB（[storage.ts](src/lib/storage.ts)） | 库 `app023-percussion`，仓 `scores` / `settings` |
 | 音频 | Web Audio 原生（[audio.ts](src/lib/audio.ts)） | 无采样文件，全合成 |
@@ -41,8 +41,8 @@ cd app-023
 npm install
 npm run dev        # 开发服务器（默认 5173）
 npm run build      # tsc -b && vite build（含类型检查）
-npm test           # 单元测试（58 个用例）
-npm run e2e        # Playwright E2E（13 个用例，自动起 4174 preview）
+npm test           # 单元测试（86 个用例）
+npm run e2e        # Playwright E2E（19 个用例，自动起 4174 preview）
 ```
 
 首次跑 E2E 前需安装浏览器：`npx playwright install chromium`。
@@ -64,18 +64,21 @@ npm run e2e        # Playwright E2E（13 个用例，自动起 4174 preview）
                     ▼            ▼                  ▼
              grid.ts        ScoreGrid.tsx       audio.ts
              时值换算/拆格    SVG 渲染            computeEvents(纯函数)
-             (编辑/打印共用)  (编辑/打印共用)      → scheduleEvents(lookahead)
+             pagination.ts  (编辑/打印/预演共用)  → scheduleEvents(lookahead)
+             分页预演(纯函数)
                     │            │                  │
-                    ▼            ▼                  ▼
-             Print.tsx      编辑器网格          AudioContext
-             A4 横排/PNG     点击+键盘录入        精确发声（25ms 填窗）
+                    ├────────────┼──────────────┐   ▼
+                    ▼            ▼              ▼ AudioContext
+             Preview.tsx   Print.tsx      编辑器网格
+             逐页预演/打印  A4 横排/PNG     点击+键盘录入   精确发声（25ms 填窗）
 ```
 
 ### 模块职责
 
 | 模块 | 职责 | 关键导出 |
 |------|------|----------|
-| [lib/grid.ts](src/lib/grid.ts) | 时值↔格换算、step 偏移、拆格合并、宽度计算（编辑与打印共用同一函数，保证宽度一致） | `barTicks` `stepOffsets` `setStepAt` `scoreWidthPx` `barsPerRow` |
+| [lib/grid.ts](src/lib/grid.ts) | 时值↔格换算、step 偏移、拆格合并、宽度计算（编辑/打印共用） | `barTicks` `stepOffsets` `setStepAt` `scoreWidthPx` `barsPerRow` |
+| [lib/pagination.ts](src/lib/pagination.ts) | 分页预演：方向/可用宽/每行小节数/拍数 → 页数、每页与每行小节、偏长溢出、两种调整方案模拟（纯函数） | `paginate` `computePxPerTick` `rowsCapacity` `defaultMaxBarsPerRow` |
 | [lib/glyphs.ts](src/lib/glyphs.ts) | 拟音字↔乐器/技法反查、键位解析、防串乐器校验 | `buildGlyphMap` `resolveKey` `lookupGlyph` `validateHitGlyphs` |
 | [lib/audio.ts](src/lib/audio.ts) | 合成音（drum/metal/wood）、lookahead 调度器、事件展开 | `computeEvents` `computeLoopEvents` `scheduleEvents` `playRange` |
 | [lib/storage.ts](src/lib/storage.ts) | IndexedDB CRUD（scores/settings） | `listScores` `getScore` `saveScore` `deleteScore` |
@@ -83,7 +86,7 @@ npm run e2e        # Playwright E2E（13 个用例，自动起 4174 preview）
 | [hooks/useAudio.ts](src/hooks/useAudio.ts) | 播放状态集中管理：ctx/调度/循环/高亮/独奏静音 | `useAudio(score)` |
 | [components/ScoreGrid.tsx](src/components/ScoreGrid.tsx) | SVG 谱面：时间×乐器网格、时值线、tie 延伸、齐奏同列、选中光标、高亮列 | `<ScoreGrid>` |
 | [components/Transport.tsx](src/components/Transport.tsx) | 试听控制台：播放/BPM/循环/高亮开关 | `<Transport>` |
-| [pages/*](src/pages) | ScoreList / Editor / Print / Library / Settings 五个页面 | — |
+| [pages/*](src/pages) | ScoreList / Editor / Preview / Print / Library / Settings 六个页面 | — |
 
 ## 4. 核心概念
 
@@ -115,6 +118,17 @@ npm run e2e        # Playwright E2E（13 个用例，自动起 4174 preview）
 ### 4.4 散板（freeMeter）
 
 不画严格拍格、时值线为相对宽度；播放按「等格时长 × `currentBeatStretch`」近似，UI 明确标注为近似。
+
+### 4.5 分页预演（pagination.ts + Preview.tsx）
+
+出谱前先算页数，**排版推演是纯函数**（[lib/pagination.ts](src/lib/pagination.ts)），UI 只负责改条件与渲染：
+
+- 条件：纸张方向（A4 横/纵）、页面可用宽（mm）、每行最多小节数、每小节拍数（预览基准，不改原谱）、乐器行数、简谱行。
+- `pxPerTick` 以该方向的**物理设计可用宽**反算（名义 N 个基准小节恰好排满），用户临时调窄/调宽可用宽只改溢出判定、不让字号漂移 —— 否则「加宽到 X mm」会因字号变大而永远追不上需求宽度。
+- 行打包每行最多 N 个小节，`soloBarIndices` 强制某小节独占一行；行宽 > 可用宽即溢出，宽于名义槽的小节记为偏长。
+- 调整建议只给「落在溢出行里的偏长小节」：`soloPageCount`（独占一行后页数）与 `widenedPageCount`（加宽到该行实际宽后页数）由同一个内部 `layoutCore` 推演，**不递归调用公开 `paginate`**（避免建议推演二次产生建议）。
+- 第一页扣 74px 标题+速度区，其后各页等容量；标题/速度说明只渲染在第一页。
+- 打印方向随条件动态注入 `@page { size: A4 <orientation> }`，屏幕区 `.no-print` 隐藏、打印区 `.pv-print-area` 仅在 `@media print` 显示，物理像素 1:1 逐页 `page-break-after: always`。
 
 ## 5. 常见开发任务
 
@@ -157,11 +171,13 @@ npm run e2e        # Playwright E2E（13 个用例，自动起 4174 preview）
 ### 6.1 布局
 
 ```
-tests/grid.test.ts      26 用例：时值换算、切分偏移、拆格、宽度一致、曲牌结构
-tests/glyphs.test.ts    18 用例：反查、技法区分、键位解析、防串乐器、冲突抛错
-tests/scheduler.test.ts  9 用例：漂移(<1e-9s)、齐奏同刻、循环相位、散板伸缩、lookahead 行为
-tests/storage.test.ts    5 用例：CRUD、排序、覆盖更新、设置往返（fake-indexeddb）
-e2e/app.spec.ts         13 用例：真实点击全链路（见 6.3）
+tests/grid.test.ts        26 用例：时值换算、切分偏移、拆格、宽度一致、曲牌结构
+tests/pagination.test.ts 22 用例：字号反算、行打包/页码、偏长溢出、独占/加宽方案页数、位置查询
+tests/preview-smoke.test.tsx 6 用例：Preview jsdom 渲染、条件改即重算、告警与调整按钮、打印区同构
+tests/glyphs.test.ts      18 用例：反查、技法区分、键位解析、防串乐器、冲突抛错
+tests/scheduler.test.ts   9 用例：漂移(<1e-9s)、齐奏同刻、循环相位、散板伸缩、lookahead 行为
+tests/storage.test.ts      5 用例：CRUD、排序、覆盖更新、设置往返（fake-indexeddb）
+e2e/app.spec.ts          19 用例：真实点击全链路（含分页预演 6 例，见 6.3）
 ```
 
 ### 6.2 约定

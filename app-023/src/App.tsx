@@ -1,7 +1,8 @@
-// 极简 hash 路由：/ 曲目列表 · /score/:id 编辑器 · /score/:id/print 打印 · /library 曲牌库 · /settings 设置
+// 极简 hash 路由：/ 曲目列表 · /score/:id 编辑器 · /score/:id/preview 分页预演 · /score/:id/print 打印 · /library 曲牌库 · /settings 设置
 import { useEffect, useState, type ReactNode } from 'react';
 import { ScoreList } from './pages/ScoreList';
 import { Editor } from './pages/Editor';
+import { Preview } from './pages/Preview';
 import { Print } from './pages/Print';
 import { Library } from './pages/Library';
 import { Settings } from './pages/Settings';
@@ -11,6 +12,8 @@ function parseHash(): { page: string; id?: string } {
   const h = window.location.hash.replace(/^#/, '') || '/';
   let m = h.match(/^\/score\/([^/]+)\/print$/);
   if (m) return { page: 'print', id: decodeURIComponent(m[1]) };
+  m = h.match(/^\/score\/([^/]+)\/preview$/);
+  if (m) return { page: 'preview', id: decodeURIComponent(m[1]) };
   m = h.match(/^\/score\/([^/]+)$/);
   if (m) return { page: 'editor', id: decodeURIComponent(m[1]) };
   if (h.startsWith('/library')) return { page: 'library' };
@@ -54,11 +57,12 @@ export function App() {
 
   let content: ReactNode;
   if (route.page === 'editor') content = <Editor scoreId={route.id!} onNavigate={(h) => (window.location.hash = h)} />;
+  else if (route.page === 'preview') content = <Preview scoreId={route.id!} />;
   else if (route.page === 'print') content = <Print scoreId={route.id!} />;
   else if (route.page === 'library') content = <Library />;
   else if (route.page === 'settings') content = <Settings />;
   else content = <ScoreList />;
 
-  const bare = route.page === 'print';
+  const bare = route.page === 'print' || route.page === 'preview';
   return <SettingsProvider>{bare ? content : <Page>{content}</Page>}</SettingsProvider>;
 }

@@ -22,6 +22,12 @@ interface Props {
   selectedInstrument?: string | null;
   showJianpu?: boolean;
   showBeatHighlightBg?: boolean;
+  /** 左侧乐器名宽（默认 64；分页预演页边距内可收窄） */
+  labelWidth?: number;
+  /** 是否隐藏左侧乐器名（分页预演对齐页边时用；小节号/字色仍在） */
+  hideLabels?: boolean;
+  /** 需要高亮告警的小节下标（偏长/溢出）：顶部加红色警示条 */
+  warnBarIndices?: Set<number>;
   onCellClick?: (bar: number, tick: number) => void;
   testIdPrefix?: string;
 }
@@ -39,13 +45,16 @@ export function ScoreGrid({
   selectedInstrument = null,
   showJianpu = false,
   showBeatHighlightBg = true,
+  labelWidth = 64,
+  hideLabels = false,
+  warnBarIndices,
   onCellClick,
   testIdPrefix = 'grid',
 }: Props) {
   const instruments: Instrument[] = score.instruments;
   const rows = instruments.length;
   const jianpuH = showJianpu ? 26 : 0;
-  const labelW = 64; // 左侧行标（乐器名）
+  const labelW = hideLabels ? 0 : labelWidth; // 左侧行标（乐器名），预演对齐页边时可收为 0
   const barNumH = 16;
   const sysH = barNumH + rows * rowHeight + 14 + jianpuH; // 一行小节(系统)高度
   const gridTop = barNumH;
@@ -92,27 +101,40 @@ export function ScoreGrid({
         const selHere = selection?.bar === barIndex ? selection : null;
         const hiHere = highlight?.bar === barIndex ? highlight : null;
         return (
-          <g key={barIndex} data-testid={`${testIdPrefix}-bar-${barIndex}`}>
-            {/* 小节号 */}
+          <g key={barIndex} data-testid={`${testIdPrefix}-bar-${barIndex}`} data-bar-index={barIndex}>
+            {/* 小节号（用真实小节序号；切片渲染时 barIndex 从 0 起、bar.index 才是全曲序号） */}
             <text x={gx} y={y + 12} fontSize={12} fill="#666">
-              {barIndex + 1}
+              {bar.index + 1}
               {bar.tempoNote ? `（${bar.tempoNote}）` : ''}
             </text>
+            {/* 偏长/溢出告警条（分页预演用） */}
+            {warnBarIndices?.has(barIndex) && (
+              <rect
+                x={gx}
+                y={y + gridTop}
+                width={w}
+                height={3}
+                fill="#c0392b"
+                data-testid={`${testIdPrefix}-warn-${barIndex}`}
+              />
+            )}
             {/* 每行乐器 */}
             {instruments.map((inst, r) => {
               const rowY = y + gridTop + r * rowHeight;
               const isSelRow = selectedInstrument === inst.id;
               return (
                 <g key={inst.id} data-testid={`${testIdPrefix}-row-${inst.id}`}>
-                  <text
-                    x={x}
-                    y={rowY + rowHeight / 2 + 5}
-                    fontSize={14}
-                    fill={isSelRow ? '#b30000' : '#333'}
-                    fontWeight={isSelRow ? 700 : 400}
-                  >
-                    {inst.name}
-                  </text>
+                  {!hideLabels && (
+                    <text
+                      x={x}
+                      y={rowY + rowHeight / 2 + 5}
+                      fontSize={14}
+                      fill={isSelRow ? '#b30000' : '#333'}
+                      fontWeight={isSelRow ? 700 : 400}
+                    >
+                      {inst.name}
+                    </text>
+                  )}
                   {/* 行底色 */}
                   <rect
                     x={gx}

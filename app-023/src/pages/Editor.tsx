@@ -339,6 +339,9 @@ export function Editor({ scoreId, onNavigate }: Props) {
         <button className="btn" onClick={removeLastBar}>
           −末小节
         </button>
+        <button className="btn" data-testid="btn-preview" onClick={() => onNavigate(`#/score/${score.id}/preview`)}>
+          分页预演
+        </button>
         <button className="btn" data-testid="btn-print" onClick={() => onNavigate(`#/score/${score.id}/print`)}>
           出谱打印
         </button>
