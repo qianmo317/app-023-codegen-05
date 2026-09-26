@@ -3,6 +3,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { ScoreList } from './pages/ScoreList';
 import { Editor } from './pages/Editor';
 import { Print } from './pages/Print';
+import { Pagination } from './pages/Pagination';
 import { Library } from './pages/Library';
 import { Settings } from './pages/Settings';
 import { SettingsProvider } from './settingsContext';
@@ -11,6 +12,8 @@ function parseHash(): { page: string; id?: string } {
   const h = window.location.hash.replace(/^#/, '') || '/';
   let m = h.match(/^\/score\/([^/]+)\/print$/);
   if (m) return { page: 'print', id: decodeURIComponent(m[1]) };
+  m = h.match(/^\/score\/([^/]+)\/preview$/);
+  if (m) return { page: 'pagination', id: decodeURIComponent(m[1]) };
   m = h.match(/^\/score\/([^/]+)$/);
   if (m) return { page: 'editor', id: decodeURIComponent(m[1]) };
   if (h.startsWith('/library')) return { page: 'library' };
@@ -55,10 +58,11 @@ export function App() {
   let content: ReactNode;
   if (route.page === 'editor') content = <Editor scoreId={route.id!} onNavigate={(h) => (window.location.hash = h)} />;
   else if (route.page === 'print') content = <Print scoreId={route.id!} />;
+  else if (route.page === 'pagination') content = <Pagination scoreId={route.id!} />;
   else if (route.page === 'library') content = <Library />;
   else if (route.page === 'settings') content = <Settings />;
   else content = <ScoreList />;
 
-  const bare = route.page === 'print';
+  const bare = route.page === 'print' || route.page === 'pagination';
   return <SettingsProvider>{bare ? content : <Page>{content}</Page>}</SettingsProvider>;
 }

@@ -193,6 +193,70 @@ test.describe('打印', () => {
   });
 });
 
+test.describe('分页预演', () => {
+  test('算页数 → 改条件立刻重算 → 过密告警 → 两种调整 → 打印', async ({ page }) => {
+    await page.goto('#/library');
+    await page.getByTestId('load-chongtou').click(); // 冲头：2/4、2 小节、一拍一字
+    await expect(page.getByTestId('editor-page')).toBeVisible();
+    await page.getByTestId('btn-preview-pages').click();
+    await expect(page.getByTestId('preview-page')).toBeVisible();
+
+    // 默认横向 277mm：2 小节 1 页，无告警；标题只在第一页
+    await expect(page.getByTestId('page-count')).toHaveText('1');
+    await expect(page.getByTestId('preview-ok')).toBeVisible();
+    await expect(page.getByTestId('preview-header')).toHaveCount(1);
+    await expect(page.getByTestId('preview-page-0')).toBeVisible();
+    await expect(page.getByTestId('summary-page-0')).toContainText('第 1–2 小节');
+
+    // 改条件：每行最多 1 小节 → 立刻重算为 2 行
+    await page.getByTestId('sel-bars-per-row').selectOption('1');
+    await expect(page.getByTestId('preview-summary')).toContainText('实际每行 1 / 1 小节');
+
+    // 可用宽度调窄 → 一拍一字排不下 → 过密告警出现
+    await page.getByTestId('sel-bars-per-row').selectOption('8');
+    await page.getByTestId('inp-usable-width').fill('100');
+    await expect(page.getByTestId('preview-warnings')).toBeVisible();
+    await expect(page.getByTestId('remedy-solo')).toContainText('单独占一行');
+    await expect(page.getByTestId('remedy-width')).toContainText('可用宽度调大到');
+
+    // 方案二：调大可用宽度 → 告警清零
+    await page.getByTestId('btn-apply-width').click();
+    await expect(page.getByTestId('preview-ok')).toBeVisible();
+    const w = Number(await page.getByTestId('inp-usable-width').inputValue());
+    expect(w).toBeGreaterThan(100);
+
+    // 回到窄宽度 → 方案一：问题小节全部单独占行 → 告警清零
+    await page.getByTestId('inp-usable-width').fill('100');
+    await expect(page.getByTestId('preview-warnings')).toBeVisible();
+    await page.getByTestId('btn-apply-solo-all').click();
+    await expect(page.getByTestId('preview-ok')).toBeVisible();
+    await expect(page.getByTestId('chip-solo-0')).toBeVisible();
+    await page.getByTestId('chip-solo-0').click(); // 取消单独占行，告警应恢复
+
+    // 打印预演结果
+    await page.evaluate(() => {
+      (window as unknown as { print: () => void }).print = () => {
+        (window as unknown as { __printed?: boolean }).__printed = true;
+      };
+    });
+    await page.getByTestId('btn-print-preview').click();
+    expect(await page.evaluate(() => (window as unknown as { __printed?: boolean }).__printed)).toBe(true);
+  });
+
+  test('纸张方向切换为纵向 → 页数与小节分布立刻重算', async ({ page }) => {
+    await page.goto('#/library');
+    await page.getByTestId('load-chongtou').click();
+    await page.getByTestId('btn-preview-pages').click();
+    await expect(page.getByTestId('preview-page')).toBeVisible();
+    await page.getByTestId('sel-orientation').selectOption('portrait');
+    // 纵向默认可用宽度被夹在物理页宽内
+    const w = Number(await page.getByTestId('inp-usable-width').inputValue());
+    expect(w).toBeLessThanOrEqual(190);
+    await expect(page.getByTestId('page-count')).toBeVisible();
+    await expect(page.getByTestId('preview-page-0')).toBeVisible();
+  });
+});
+
 test.describe('设置', () => {
   test('改键位并持久化', async ({ page }) => {
     await page.goto('#/settings');

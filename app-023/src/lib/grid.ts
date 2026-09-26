@@ -1,6 +1,6 @@
 // 谱面网格换算 —— 最小时间单位为「格」，每拍 4 格。
 // 一律用整数格存谱，绝不用浮点时间（避免渲染/打印 1px 抖动与累积误差）。
-import { TICKS_PER_BEAT, type Bar, type Score, type Step } from '../types';
+import { TICKS_PER_BEAT, type Bar, type Hit, type Score, type Step } from '../types';
 
 /** 常用时值 → 格数 */
 export const DURATIONS: { name: string; ticks: number; abbr: string }[] = [
@@ -85,6 +85,27 @@ export function barsPerRow(pageWidthPx: number, beatsPerBar: number, pxPerTick: 
 /** 全曲拍总数（散板时为相对格数） */
 export function totalTicks(bars: Bar[]): number {
   return bars.reduce((s, b) => s + barTicks(b.beatsPerBar), 0);
+}
+
+/** 全曲改拍号：按格偏移把每小节的 hits 搬到新小节（小节变短会丢弃超出的击点） */
+export function rebarBars(bars: Bar[], beatsPerBar: number): Bar[] {
+  return bars.map((bar, i) => {
+    const offsets: number[] = [];
+    let acc = 0;
+    for (const st of bar.steps) {
+      offsets.push(acc);
+      acc += st.beats;
+    }
+    const hitsByTick = new Map<number, Hit[]>();
+    bar.steps.forEach((st, si) => {
+      if (st.hits.length) hitsByTick.set(offsets[si], st.hits);
+    });
+    const steps: Step[] = Array.from({ length: beatsPerBar }, (_, b) => {
+      const hits = hitsByTick.get(b * TICKS_PER_BEAT);
+      return { beats: TICKS_PER_BEAT, hits: hits ? [...hits] : [] };
+    });
+    return { index: i, beatsPerBar, steps };
+  });
 }
 
 /** 全曲 step 展开为绝对格位置 */

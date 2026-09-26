@@ -122,6 +122,72 @@ h2 { font-size: 16px; margin: 18px 0 6px; border-left: 3px solid var(--red); pad
   .score-svg { page-break-inside: avoid; }
 }
 
+/* ---- 分页预演 ---- */
+.preview-page { min-height: 100vh; background: #e8e6e0; }
+.preview-toolbar {
+  display: flex; gap: 12px; align-items: center; padding: 8px 16px;
+  background: var(--panel); border-bottom: 2px solid var(--red); flex-wrap: wrap;
+  position: sticky; top: 0; z-index: 10;
+}
+.preview-toolbar select, .preview-toolbar input[type='number'] {
+  border: 1px solid var(--border); border-radius: 3px; padding: 3px 6px; margin: 0 4px;
+  background: #fff;
+}
+.preview-toolbar .presets { display: inline-flex; gap: 4px; }
+.preview-summary {
+  padding: 10px 16px; background: #fff; border-bottom: 1px solid var(--border);
+  font-size: 14px; line-height: 2;
+}
+.preview-ok {
+  margin: 12px 16px; padding: 8px 14px; background: #eef7ee;
+  border: 1px solid #9fca9f; border-radius: 6px; color: #2f6f3f;
+}
+.preview-warnings {
+  margin: 12px 16px; padding: 10px 14px; background: #fff8e6;
+  border: 1px solid #e6c766; border-radius: 6px; line-height: 2;
+}
+.warn-row { color: #8a5a00; display: flex; gap: 10px; align-items: center; }
+.preview-warnings .remedy { display: flex; gap: 10px; align-items: center; color: var(--ink); }
+.solo-chip { margin: 0 4px; }
+
+.preview-sheets { padding: 20px; display: flex; flex-direction: column; align-items: center; gap: 28px; }
+.sheet-wrap { position: relative; flex-shrink: 0; }
+.sheet-scale { transform-origin: top left; width: 0; height: 0; }
+.preview-sheet {
+  position: relative; background: #fff; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25);
+}
+.margin-guide {
+  position: absolute; border: 1px dashed #cfcfcf; pointer-events: none;
+}
+.preview-header { position: absolute; text-align: center; }
+.preview-header h1 { font-size: 24px; letter-spacing: 6px; margin: 8px 0 4px; }
+.preview-header p { color: var(--dim); margin: 0; font-size: 13px; }
+.preview-row { position: absolute; }
+.preview-row .overflow-tag, .preview-row .dense-tag {
+  position: absolute; top: -2px; font-size: 11px; padding: 1px 6px;
+  border-radius: 3px; color: #fff; white-space: nowrap;
+}
+.preview-row .overflow-tag { right: 0; background: var(--red); }
+.preview-row .dense-tag { right: 0; top: 14px; background: #c98a1c; }
+.page-num {
+  position: absolute; left: 0; right: 0; bottom: 8px; text-align: center;
+  color: var(--dim); font-size: 12px;
+}
+.print-foot { text-align: center; padding: 8px 16px 20px; }
+
+@media print {
+  .preview-page { background: #fff; }
+  .preview-sheets { padding: 0; gap: 0; display: block; }
+  .sheet-wrap {
+    width: auto !important; height: auto !important;
+    page-break-after: always; break-after: page;
+  }
+  .sheet-wrap:last-child { page-break-after: auto; break-after: auto; }
+  .sheet-scale { transform: none !important; width: auto !important; height: auto !important; }
+  .preview-sheet { box-shadow: none !important; }
+  .margin-guide { display: none; }
+}
+
 /* ---- 曲牌库 ---- */
 .pattern-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin: 12px 0 24px; }
 .pattern-card { border: 1px solid var(--border); border-radius: 6px; padding: 12px 14px; background: #fff; }

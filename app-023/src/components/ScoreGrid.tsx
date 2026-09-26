@@ -22,6 +22,10 @@ interface Props {
   selectedInstrument?: string | null;
   showJianpu?: boolean;
   showBeatHighlightBg?: boolean;
+  /** 是否画左侧乐器名行标（预演分页时只在每行第一行画，节省横向空间） */
+  showLabels?: boolean;
+  /** 切片渲染时小节号的全局偏移（预演每行只传该行的小节） */
+  barNumberOffset?: number;
   onCellClick?: (bar: number, tick: number) => void;
   testIdPrefix?: string;
 }
@@ -39,13 +43,15 @@ export function ScoreGrid({
   selectedInstrument = null,
   showJianpu = false,
   showBeatHighlightBg = true,
+  showLabels = true,
+  barNumberOffset = 0,
   onCellClick,
   testIdPrefix = 'grid',
 }: Props) {
   const instruments: Instrument[] = score.instruments;
   const rows = instruments.length;
   const jianpuH = showJianpu ? 26 : 0;
-  const labelW = 64; // 左侧行标（乐器名）
+  const labelW = showLabels ? 64 : 0; // 左侧行标（乐器名）
   const barNumH = 16;
   const sysH = barNumH + rows * rowHeight + 14 + jianpuH; // 一行小节(系统)高度
   const gridTop = barNumH;
@@ -95,7 +101,7 @@ export function ScoreGrid({
           <g key={barIndex} data-testid={`${testIdPrefix}-bar-${barIndex}`}>
             {/* 小节号 */}
             <text x={gx} y={y + 12} fontSize={12} fill="#666">
-              {barIndex + 1}
+              {barIndex + 1 + barNumberOffset}
               {bar.tempoNote ? `（${bar.tempoNote}）` : ''}
             </text>
             {/* 每行乐器 */}
@@ -104,15 +110,17 @@ export function ScoreGrid({
               const isSelRow = selectedInstrument === inst.id;
               return (
                 <g key={inst.id} data-testid={`${testIdPrefix}-row-${inst.id}`}>
-                  <text
-                    x={x}
-                    y={rowY + rowHeight / 2 + 5}
-                    fontSize={14}
-                    fill={isSelRow ? '#b30000' : '#333'}
-                    fontWeight={isSelRow ? 700 : 400}
-                  >
-                    {inst.name}
-                  </text>
+                  {showLabels && (
+                    <text
+                      x={x}
+                      y={rowY + rowHeight / 2 + 5}
+                      fontSize={14}
+                      fill={isSelRow ? '#b30000' : '#333'}
+                      fontWeight={isSelRow ? 700 : 400}
+                    >
+                      {inst.name}
+                    </text>
+                  )}
                   {/* 行底色 */}
                   <rect
                     x={gx}
